@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Countdown Timer</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .welcome {
+            font-size: 3em;
+            margin-bottom: 30px;
+            text-align: center;
+            color: #4CAF50;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .container {
+            text-align: center;
+            background-color: #2a2a2a;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            max-width: 100%;
+            width: 600px;
+        }
+        #timer {
+            font-size: 5em;
+            margin-bottom: 30px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        input {
+            font-size: 1em;
+            padding: 10px;
+            margin: 5px;
+            border: none;
+            background-color: #3a3a3a;
+            color: #ffffff;
+            border-radius: 5px;
+            text-align: center;
+        }
+        button {
+            font-size: 1em;
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        #startButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #stopButton, #resetButton {
+            background-color: #f44336;
+            color: white;
+        }
+        #stopSiren {
+            display: none;
+            background-color: #ff9800;
+            color: white;
+        }
+        #visitorCount {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #888;
+        }
+        @media (max-width: 600px) {
+            .welcome {
+                font-size: 2em;
+            }
+            #timer {
+                font-size: 3em;
+            }
+            .container {
+                padding: 20px;
+            }
+            input, button {
+                font-size: 0.9em;
+                padding: 8px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1 class="welcome">Welcome Back</h1>
+    <div class="container">
+        <div id="timer">00:00:00</div>
+        <div class="input-group">
+            <input type="number" id="hours" placeholder="Hours" min="0" max="23">
+            <input type="number" id="minutes" placeholder="Minutes" min="0" max="59">
+            <input type="number" id="seconds" placeholder="Seconds" min="0" max="59">
+        </div>
+        <div class="input-group">
+            <input type="text" id="sirenTimes" placeholder="Siren times (comma-separated minutes)">
+        </div>
+        <button id="startButton" onclick="startTimer()">Start</button>
+        <button id="stopButton" onclick="stopTimer()">Stop</button>
+        <button id="resetButton" onclick="resetTimer()">Reset</button>
+        <button id="stopSiren" onclick="stopSiren()">Stop Siren</button>
+        <div id="visitorCount">Visitors: Loading...</div>
+    </div>
+
+    <audio id="sirenSound" src="https://soundbible.com/mp3/Siren_Noise-KevanGC-1337458893.mp3"></audio>
+
+    <script>
+        let countdown;
+        let totalSeconds;
+        let sirenTimes = [];
+        const timerDisplay = document.getElementById('timer');
+        const sirenSound = document.getElementById('sirenSound');
+        const stopSirenButton = document.getElementById('stopSiren');
+        const visitorCountDisplay = document.getElementById('visitorCount');
+
+        // Preload countdown voice audio
+        const countdownVoices = {};
+        for (let i = 10; i >= 0; i--) {
+            countdownVoices[i] = new Audio(`https://raw.githubusercontent.com/EliasVincent/html-simple-countdown/master/audio/${i}.mp3`);
+        }
+
+        function startTimer() {
+            clearInterval(countdown);
+            const hours = parseInt(document.getElementById('hours').value) || 0;
+            const minutes = parseInt(document.getElementById('minutes').value) || 0;
+            const seconds = parseInt(document.getElementById('seconds').value) || 0;
+            totalSeconds = hours * 3600 + minutes * 60 + seconds;
+            
+            if (totalSeconds <= 0) return;
+
+            sirenTimes = document.getElementById('sirenTimes').value
+                .split(',')
+                .map(time => parseInt(time.trim()) * 60)
+                .filter(time => !isNaN(time) && time > 0 && time <= totalSeconds);
+
+            updateDisplay();
+            countdown = setInterval(() => {
+                totalSeconds--;
+                if (totalSeconds < 0) {
+                    clearInterval(countdown);
+                    return;
+                }
+                updateDisplay();
+                checkAlarm();
+                playCountdownVoice();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(countdown);
+            stopSiren();
+            stopCountdownVoice();
+        }
+
+        function resetTimer() {
+            clearInterval(countdown);
+            stopSiren();
+            stopCountdownVoice();
+            totalSeconds = 0;
+            updateDisplay();
+            document.getElementById('hours').value = '';
+            document.getElementById('minutes').value = '';
+            document.getElementById('seconds').value = '';
+            document.getElementById('sirenTimes').value = '';
+        }
+
+        function updateDisplay() {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            timerDisplay.textContent = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+        }
+
+        function pad(number) {
+            return number < 10 ? '0' + number : number;
+        }
+
+        function checkAlarm() {
+            if (sirenTimes.includes(totalSeconds)) {
+                playSiren();
+            }
+        }
+
+        function playSiren() {
+            sirenSound.play();
+            stopSirenButton.style.display = 'inline-block';
+        }
+
+        function stopSiren() {
+            sirenSound.pause();
+            sirenSound.currentTime = 0;
+            stopSirenButton.style.display = 'none';
+        }
+
+        function playCountdownVoice() {
+            if (totalSeconds <= 10 && totalSeconds > 0) {
+                countdownVoices[totalSeconds].play();
+            }
+        }
+
+        function stopCountdownVoice() {
+            for (let i = 10; i >= 0; i--) {
+                countdownVoices[i].pause();
+                countdownVoices[i].currentTime = 0;
+            }
+        }
+
+        // Simulated visitor count (replace with actual backend implementation)
+        let visitorCount = Math.floor(Math.random() * 1000) + 1;
+        visitorCountDisplay.textContent = `Visitors: ${visitorCount}`;
+
+        // Increment visitor count every 5-10 seconds
+        setInterval(() => {
+            visitorCount++;
+            visitorCountDisplay.textContent = `Visitors: ${visitorCount}`;
+        }, Math.random() * 5000 + 5000);
+    </script>
+</body>
+</html>
